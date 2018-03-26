@@ -121,12 +121,6 @@
     (doseq [r (neanderthal/rows newm)] (neanderthal/axpy! -1 means r))
     newm))
 
-(defn nadd-colmeans
-  [m means]
-  (let [newm (neanderthal/copy m)]
-    (doseq [r (neanderthal/rows newm)] (neanderthal/axpy! means r))
-    newm))
-
 (defn ncovariance
   [m]
   (neanderthal/mm (neanderthal/trans m) m))
@@ -213,6 +207,14 @@
   (def reduced-meansunadj-iris-dge (nadd-colmeans reduced-iris-dge iris-meansunadj-vec))
   (def oz-iris-data (oz-data top2evecs reduced-iris-dge iris-lines))
   (oz/v! oz-iris-data)
+  ;; TEST
+  (def toym (native/dge 5 2 [2.5 3 3.25 3.75 5.1 4.9 5.8 5.7 8.1 7.2] {:layout :row}))
+  (def toymeans (ncolmeans m))
+  (def toymeansadj (nsubtract-colmeans m))
+  (def toycovar (ncovariance tmeansadj))
+  (def toyeigens (get-eigens tcovar))
+  (def toyeigenvecs (:left-eigenvecs teigens))
+  (def toyprojected (neanderthal/mm tmeansadj teigenvecs))
   ;; NOTES
   ;; The Neanderthal PCA seems to match https://www.math.umd.edu/~petersd/666/html/iris_pca.html
   ;; covar (PCA LIB) does not match either cov-iris-array or cov-iris-dge. The latter 2 match.
