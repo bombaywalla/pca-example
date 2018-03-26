@@ -1,14 +1,14 @@
 # pca-example
 
-A Clojure library designed to ... well, that part is up to you.
+A Clojure library using PCA as an excuse to learn/demo oz, plotly, neanderthal, and core.matrix.
 
 ## Usage
 
-FIXME
+Look at the comment at the end of core.clj.
 
 ## License
 
-Copyright © 2018 FIXME
+Copyright © 2018 Dorab Patel
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Distributed under the MIT license.
+See LICENSE for details.
