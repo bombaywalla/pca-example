@@ -16,6 +16,7 @@
                   :exclusions [org.jcuda/jcuda-natives
                                org.jcuda/jcublas-natives]]
                  [uncomplicate/fluokitten "0.6.1"]
+                 [clj-http "3.8.0"]
                  ]
   :main pca-example.core
   )

@@ -12,12 +12,20 @@
             [uncomplicate.neanderthal.native :as native]
             [uncomplicate.neanderthal.linalg :as linalg]
             [uncomplicate.fluokitten.core :as fluokitten]
+            [clj-http.client :as http]
         )
   )
 
 ;;; COMMON
 
 ;;; Download the data from https://vincentarelbundock.github.io/Rdatasets/csv/datasets/iris.csv
+
+(defn download-file
+  [filename]
+  (http/get filename))
+
+(defonce iris-data
+  (download-file "https://vincentarelbundock.github.io/Rdatasets/csv/datasets/iris.csv"))
 
 (defn read-csv
   [file]
@@ -172,7 +180,13 @@
 
 (comment
   ;; COMMON
-  (def iris-lines (read-csv "iris.csv"))
+  (def iris-lines (->> iris-data
+                       :body
+                       string/split-lines
+                       (map #(-> %
+                                 (string/replace #"\"" "")
+                                 (string/split #",")
+                                 ))))
   (def header (get-header iris-lines))
   (def dataset (format-data iris-lines))
   (oz/start-plot-server!)
