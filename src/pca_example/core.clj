@@ -8,6 +8,7 @@
             [clojure.data.csv :as csv]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [uncomplicate.commons.core :as commons]
             [uncomplicate.neanderthal.core :as neanderthal]
             [uncomplicate.neanderthal.native :as native]
             [uncomplicate.neanderthal.linalg :as linalg]
@@ -122,12 +123,24 @@
   [m]
   (native/dv (fluokitten/fmap nmean (neanderthal/cols m))))
 
+(defn idvec
+  [n]
+  (fluokitten/fmap (fn ^double [^double x] (inc x)) (native/dv n)))
+
 (defn nsubtract-colmeans
   [m]
-  (let [newm (neanderthal/copy m)
-        means (ncolmeans newm)]
-    (doseq [r (neanderthal/rows newm)] (neanderthal/axpy! -1 means r))
-    newm))
+  (let [numrows (neanderthal/mrows m)
+        id (idvec numrows)
+        means (ncolmeans m)
+        mmeans (neanderthal/rk id means)]
+    (neanderthal/axpy -1 mmeans m)))
+
+(defn nadd-colmeans
+  [m means]
+  (let [numrows (neanderthal/mrows m)
+        id (idvec numrows)
+        mmeans (neanderthal/rk id means)]
+    (neanderthal/axpy 1 mmeans m)))
 
 (defn ncovariance
   [m]
@@ -229,6 +242,7 @@
   (def toyeigens (get-eigens tcovar))
   (def toyeigenvecs (:left-eigenvecs teigens))
   (def toyprojected (neanderthal/mm tmeansadj teigenvecs))
+  (def toymeansunadjusted (nadd-colmeans toyprojected toymeans))
   ;; NOTES
   ;; The Neanderthal PCA seems to match https://www.math.umd.edu/~petersd/666/html/iris_pca.html
   ;; covar (PCA LIB) does not match either cov-iris-array or cov-iris-dge. The latter 2 match.
