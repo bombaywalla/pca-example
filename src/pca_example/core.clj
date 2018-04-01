@@ -107,6 +107,10 @@
   (let [m-trans (matrix/transpose m)]
     (matrix/mmul m-trans m)))
 
+(defn get-eigenvecs
+  [m]
+  (:Q (linear/eigen m)))
+
 ;;; NEANDERTHAL
 
 (defn ds2dge
@@ -166,17 +170,15 @@
   (string/join " + " (map #(str (format "%.3f" %1) " * " %2) ev hdr)))
 
 (defn format-axis-labels
-  [hdr evecs]
-  (map #(format-axis-label hdr %) (neanderthal/cols evecs)))
+  [hdr colevecs]
+  (map #(format-axis-label hdr %) colevecs))
 
 (defn oz-data
-  [eigenvecs data lines]
+  [coleigenvecs xs ys lines]
   (let [header (get-header lines)
-        labels (format-axis-labels header eigenvecs)
+        labels (format-axis-labels header coleigenvecs)
         xlabel (first labels)
         ylabel (second labels)
-        xs (neanderthal/col data 0)
-        ys (neanderthal/col data 1)
         zs (rest (map #(nth % 5) lines))
         ds (map (fn [x y z] {:x x :y y :species z}) xs ys zs)]
     {:width 800
@@ -221,6 +223,11 @@
   (def iris-array (ds2array dataset))
   (def meansadj-iris-array (subtract-means iris-array))
   (def cov-iris-array (covariance meansadj-iris-array))
+  (def eigenvecs-array (get-eigenvecs cov-iris-array))
+  (def top2evecs-array (matrix/select eigenvecs-array :all [0 1]))
+  (def reduced-iris-array (matrix/mmul meansadj-iris-array top2evecs-array))
+  (def oz-iris-data-array (oz-data (matrix/columns top2evecs-array) (first (matrix/columns reduced-iris-array)) (second (matrix/columns reduced-iris-array)) iris-lines))
+  (oz/v! oz-iris-data-array)
   ;; NEANDERTHAL
   (def iris-dge (ds2dge dataset))
   (def iris-means-vec (ncolmeans iris-dge))
@@ -230,10 +237,10 @@
   (def eigenvecs (:left-eigenvecs eigenstuff))
   (def top2evecs (neanderthal/submatrix eigenvecs 4 2)) ; Note this does not match docs
   (def reduced-iris-dge (neanderthal/mm meansadj-iris-dge top2evecs))
-  (def iris-meansunadj-vec (native/dv (map #(neanderthal/dot iris-means-vec %) (neanderthal/cols top2evecs))))
-  (def reduced-meansunadj-iris-dge (nadd-colmeans reduced-iris-dge iris-meansunadj-vec))
-  (def oz-iris-data (oz-data top2evecs reduced-iris-dge iris-lines))
-  (oz/v! oz-iris-data)
+  ;(def iris-meansunadj-vec (native/dv (map #(neanderthal/dot iris-means-vec %) (neanderthal/cols top2evecs))))
+  ;(def reduced-meansunadj-iris-dge (nadd-colmeans reduced-iris-dge iris-meansunadj-vec))
+  (def oz-iris-data-dge (oz-data (neanderthal/cols top2evecs) (neanderthal/col reduced-iris-dge 0) (neanderthal/col reduced-iris-dge 1) iris-lines))
+  (oz/v! oz-iris-data-dge)
   ;; TEST
   (def toym (native/dge 5 2 [2.5 3 3.25 3.75 5.1 4.9 5.8 5.7 8.1 7.2] {:layout :row}))
   (def toymeans (ncolmeans m))
