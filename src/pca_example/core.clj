@@ -67,10 +67,13 @@
 ;;; OZ
 
 (defn vecseq2mapseq
+  "Take a sequence of vectors and return a sequence of maps.
+  Used for csv files."
   [vs & ks]
   (map #(zipmap ks %) vs))
 
 (defn gen-scatter-plot
+  "Generate scatter plot data for OZ."
   [data]
   {:width 800
    :height 800
@@ -113,45 +116,31 @@
 
 ;;; NEANDERTHAL
 
-(defn ds2dge
-  [ds]
+(defn ds2dge [ds]
   (let [nrows (count ds)
         ncols (count (first ds))]
     (native/dge nrows ncols (apply concat ds) {:layout :row})))
 
-(defn nmean
-  [v]
+(defn nmean [v]
   (/ (neanderthal/sum v) (neanderthal/dim v)))
 
-(defn ncolmeans
-  [m]
+(defn ncolmeans [m]
   (native/dv (fluokitten/fmap nmean (neanderthal/cols m))))
 
-(defn idvec
-  [n]
+(defn idvec [n]
   (fluokitten/fmap (fn ^double [^double x] (inc x)) (native/dv n)))
 
-(defn nsubtract-colmeans
-  [m]
+(defn nsubtract-colmeans [m]
   (let [numrows (neanderthal/mrows m)
         id (idvec numrows)
         means (ncolmeans m)
         mmeans (neanderthal/rk id means)]
     (neanderthal/axpy -1 mmeans m)))
 
-(defn nadd-colmeans
-  [m means]
-  (let [numrows (neanderthal/mrows m)
-        id (idvec numrows)
-        mmeans (neanderthal/rk id means)]
-    (neanderthal/axpy 1 mmeans m)))
-
-(defn ncovariance
-  [m]
+(defn ncovariance [m]
   (neanderthal/mm (neanderthal/trans m) m))
 
-(defn get-eigens
-  [m]
+(defn get-eigens [m]
   (let [mc (neanderthal/copy m)
         numrows (neanderthal/mrows mc)
         numcols (neanderthal/ncols mc)
@@ -164,6 +153,8 @@
      :left-eigenvecs left-eigenvecs
      :right-eigenvecs right-eigenvecs
      }))
+
+;;; OZ HELPERS
 
 (defn format-axis-label
   [hdr ev]
@@ -179,7 +170,7 @@
         labels (format-axis-labels header coleigenvecs)
         xlabel (first labels)
         ylabel (second labels)
-        zs (rest (map #(nth % 5) lines))
+        zs (rest (map #(nth % 5) lines)) ; extract the Species field
         ds (map (fn [x y z] {:x x :y y :species z}) xs ys zs)]
     {:width 800
      :height 800
@@ -194,6 +185,7 @@
      :mark "circle"}))
 
 (comment
+
   ;; COMMON
   (def iris-lines (->> iris-data
                        :body
@@ -205,20 +197,23 @@
   (def header (get-header iris-lines))
   (def dataset (format-data iris-lines))
   (oz/start-plot-server!)
+
   ;; PCA LIB
   (def covar (pca/covariance dataset))
   (def iris-components (pca/principal-components covar 2))
-  (def compressed-dataset (map (partial pca/compress iris-components) dataset))
+  (def compressed-dataset (map (partial pca/compress iris-components)
+                               dataset))
   (def labels (map #(get % 5) iris-lines))
   (def species ["setosa" "versicolor" "virginica"])
   (def split-dataset (gen-split-dataset compressed-dataset labels species))
   (def iris-trace (map build-trace split-dataset species))
   (plot/plot 800 800 iris-trace {})
+
   ;; OZ
   (def iris-data (vecseq2mapseq (apply concat split-dataset) :x :y :species))
   (def iris-plot (gen-scatter-plot iris-data))
-  (oz/v! line-plot)
   (oz/v! iris-plot)
+
   ;; CORE.MATRIX
   (def iris-array (ds2array dataset))
   (def meansadj-iris-array (subtract-means iris-array))
@@ -226,21 +221,29 @@
   (def eigenvecs-array (get-eigenvecs cov-iris-array))
   (def top2evecs-array (matrix/select eigenvecs-array :all [0 1]))
   (def reduced-iris-array (matrix/mmul meansadj-iris-array top2evecs-array))
-  (def oz-iris-data-array (oz-data (matrix/columns top2evecs-array) (first (matrix/columns reduced-iris-array)) (second (matrix/columns reduced-iris-array)) iris-lines))
+  (def oz-iris-data-array
+    (oz-data (matrix/columns top2evecs-array)
+             (first (matrix/columns reduced-iris-array))
+             (second (matrix/columns reduced-iris-array))
+             iris-lines))
   (oz/v! oz-iris-data-array)
+
   ;; NEANDERTHAL
   (def iris-dge (ds2dge dataset))
   (def iris-means-vec (ncolmeans iris-dge))
   (def meansadj-iris-dge (nsubtract-colmeans iris-dge))
   (def cov-iris-dge (ncovariance meansadj-iris-dge))
-  (def eigenstuff (get-eigens cov-iris-dge)) ; Are the results of eigenstuff always sorted?
+  (def eigenstuff (get-eigens cov-iris-dge)) ; Always sorted?
   (def eigenvecs (:left-eigenvecs eigenstuff))
-  (def top2evecs (neanderthal/submatrix eigenvecs 4 2)) ; Note this does not match docs
+  (def top2evecs (neanderthal/submatrix eigenvecs 4 2)) ; Does not match docs
   (def reduced-iris-dge (neanderthal/mm meansadj-iris-dge top2evecs))
-  ;(def iris-meansunadj-vec (native/dv (map #(neanderthal/dot iris-means-vec %) (neanderthal/cols top2evecs))))
-  ;(def reduced-meansunadj-iris-dge (nadd-colmeans reduced-iris-dge iris-meansunadj-vec))
-  (def oz-iris-data-dge (oz-data (neanderthal/cols top2evecs) (neanderthal/col reduced-iris-dge 0) (neanderthal/col reduced-iris-dge 1) iris-lines))
+  (def oz-iris-data-dge
+    (oz-data (neanderthal/cols top2evecs)
+             (neanderthal/col reduced-iris-dge 0)
+             (neanderthal/col reduced-iris-dge 1)
+             iris-lines))
   (oz/v! oz-iris-data-dge)
+
   ;; TEST
   (def toym (native/dge 5 2 [2.5 3 3.25 3.75 5.1 4.9 5.8 5.7 8.1 7.2] {:layout :row}))
   (def toymeans (ncolmeans m))
